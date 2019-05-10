@@ -1,0 +1,82 @@
+#+TITLE: latte
+Team members: Teguh Hofstee
+
+* Overview
+This project aims to make a latte art machine that can create free
+pour latte art. This is different from existing latte art machines as
+those typically print an image using something like cocoa powder,
+drops of coffee, or edible ink on a layer of foam. The resulting art
+created has a very different aesthetic to traditional free pour latte
+art, and personally I think loses some of the charm of latte art. One
+machine that tries to do this does exist[fn:thermoplan], but is built
+into an espresso machine making it very expensive, and doesn't
+generate particulary good results. This system would be free standing.
+
+Originally the plan was to build two separate machines, one as a
+dedicated cup holder and one as a milk pourer, and tailor them to the
+specific kinds of motions needed for each half. Essentially some sort
+of pan and tilt stage for the cup, and something more complex for the
+pitcher. Pat said it would look cooler if the two halves were
+essentially robotic arms, akin to some of the robotic bartenders.
+
+While I don't disagree, I'm not made of money so I'd like to keep it
+relatively budget conscious. The pitcher itself is probably going to
+hold 6-8oz of milk, which puts it at about 385g. While this isn't
+extremely heavy, it's still heavy enough to concern me about having
+sufficient torque in an articulated arm using relatively inexpensive
+parts. Additionally an articulated arm would probably need to be about
+5-dof, which adds more complexity than I think is really necessary. It
+does have the benefit of being able to make one, and essentially
+duplicate it for the other half though.
+
+Instead what I'm planning to do is to make the pitcher half of the
+machine. I'm planning on making a SCARA arm with 4-dof (no z). This
+should also help to deal with the torque issues since the force can be
+exerted more on the structure and have reduced effect on the torque
+that needs to be produced by the motors themselves. For the cup half,
+at least for now I'm just planning on using my own hand, which I guess
+also sort of makes this a bit of an interactive machine.
+
+I think the hardest part of the project is going to be the
+control. Beyond just getting it to create a single design, creating
+new designs will also be tricky. Adding some degree of interaction to
+"train" the arm to create a new design might be helpful, but I'm not
+entirely sure how to design a system that reacts correctly to external
+force besides just duplicating the structure with encoders instead of
+motors. Creating some sort of simulation that could approximate images
+with free pours also could be neat, but is probably way out of my
+depth. Simulating the result of an existing free pour has been done
+before[fn:simulation], but reverse engineering a pour from art as far
+as I can tell has not been done.
+
+* Plan
+- [ ] CAD design of arm
+- [ ] Order parts
+- [ ] Practice making latte art while waiting for parts
+- [ ] Assemble arm
+- [ ] Basic movement with arm
+- [ ] Figure out parameters for smooth pouring
+- [ ] Evenly pour milk into cup for consistent color
+- [ ] Try to get basic latte art shapes created
+- [ ] Explore more complex art as well as ways to control the machine
+- [ ] Inverse fluid simulation
+
+* Parts
+Will be updated over time, tentatively either relatively high torque
+servo motors or a few NEMA17 steppers, and something to program and
+control the motors. Other parts are not set in stone yet but I have a
+reasonably comprehensive idea that will probably result in buying some
+modular parts from ServoShop. Rotational or magnetic encoders might
+also be useful to get positional feedback (even in the case of using
+servos as you can't query a servo for its position).
+
+- Calipers
+- Towels
+- Cup
+- Pitcher
+- Emergency stop button
+- ???
+
+* References
+[fn:thermoplan] https://www.thermoplan.ch/en/latteartist
+[fn:simulation] https://dl.acm.org/citation.cfm?id=2542344
