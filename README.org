@@ -50,11 +50,11 @@ before[fn:simulation], but reverse engineering a pour from art as far
 as I can tell has not been done.
 
 * Plan
-- [ ] CAD design of arm
-- [ ] Order parts
-- [ ] Practice making latte art while waiting for parts
-- [ ] Assemble arm
-- [ ] Basic movement with arm
+- [x] CAD design of arm
+- [x] Order parts
+- [x] Practice making latte art while waiting for parts
+- [x] Assemble arm
+- [x] Basic movement with arm
 - [ ] Figure out parameters for smooth pouring
 - [ ] Evenly pour milk into cup for consistent color
 - [ ] Try to get basic latte art shapes created
