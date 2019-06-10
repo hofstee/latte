@@ -1,6 +1,7 @@
 #include <Math.h>
 #include <Servo.h>
 #include <AceRoutine.h>
+
 using namespace ace_routine;
 
 Servo tilt;
@@ -336,6 +337,8 @@ void setup() {
 //  move_to(0, 190, 90, 0); // y-max 0 tilt
 
   CoroutineScheduler::setup();
+
+  heart();
 }
 
 COROUTINE(measure_current) {
@@ -424,13 +427,48 @@ COROUTINE(stationary) {
 }
 
 void heart() {
-  const int rotations = 10;
-  for (float t = 0.0; t <= rotations*2*M_PI; t += 0.01) {
-    float x = 15 * cos(1*t);
-    float y = 150 + 10 * sin(1*t);
-    float tilt = map(t, 0.0, rotations*2*M_PI, 90, 30);
+  // About 7 rotations over 5 seconds
+  const unsigned long NUM_ROTATIONS = 7;
+  const unsigned long FILL_DUR = 5000;
+  // About 5 seconds for the heart
+  const unsigned long HEART_DUR = 5000;
+  // About 1 second for the pull through
+  const unsigned long PULL_DUR = 1000;
+
+  unsigned long start_ms, cur_ms;
+  
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + FILL_DUR) {
+    float t = map(cur_ms, start_ms, start_ms + 5000, 0.0, NUM_ROTATIONS*2*M_PI);
+    float x = 15 * cos(t);
+    float y = 150 + 10 * sin(t);
+    float tilt = map(cur_ms, start_ms, start_ms + 5000, 90, 30);
     move_to(x, y, 90, tilt);
-//    delay(15);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 500) {
+    float tilt = map(cur_ms, start_ms, start_ms + 500, 30, 45);
+    move_to(0, 130, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + HEART_DUR) {
+    float tilt = map(cur_ms, start_ms , start_ms + HEART_DUR, 30, 10);
+    move_to(0, 130, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + PULL_DUR) {
+    float y = 130 + map(cur_ms, start_ms, start_ms + PULL_DUR, 0, 40);
+    float tilt = map(cur_ms, start_ms , start_ms + PULL_DUR, 10, 0);
+    move_to(0, y, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 2000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 2000, 0, 90);
+    move_to(0, 130, 90, tilt);
   }
 }
 
@@ -461,5 +499,5 @@ void loop() {
 //    }
 //  #endif
 
-  heart();
+//  heart();
 }
