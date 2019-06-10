@@ -31,13 +31,6 @@ float target[4];
 float error[4];
 float prev_error[4];
 
-// Config 2
-//const float LEN_0 = 128.98; // pivot 0 to pivot 1
-//const float LEN_1 = 83.83; // pivot 1 to pivot 2
-//const float LEN_2 = 69.97; // pivot 2 to middle of l-bracket (43.22 + 26.75)
-//const float LEN_3 = 100.0;
-
-// Config 3
 const float LEN_0 = 128.98; // pivot 0 to pivot 1
 const float LEN_1 = 83.83; // pivot 1 to pivot 2
 const float LEN_2 = 101.97; // pivot 2 to middle of 3-bracket
@@ -239,6 +232,8 @@ void move_to(float x, float y, float pan, float tilt) {
       Serial.print(", ");
       Serial.print(tilt);
       Serial.print(")\n");
+    #else
+      Serial.println("Can't move!");
     #endif
   }
 }
@@ -336,7 +331,7 @@ void setup() {
 //  move_to(0, 332.1, 80, 90);
 
 //  move_to(0, 206.7, 90, 90); // y-min 90 tilt for config 2
-  move_to(0, 125, 90, 90); // y-min 90 tilt for config 3
+//  move_to(0, 125, 90, 90); // y-min 90 tilt for config 3
 //  move_to(0, 125, 90, 0);
 //  move_to(0, 190, 90, 0); // y-max 0 tilt
 
@@ -428,6 +423,17 @@ COROUTINE(stationary) {
   }
 }
 
+void heart() {
+  const int rotations = 10;
+  for (float t = 0.0; t <= rotations*2*M_PI; t += 0.01) {
+    float x = 15 * cos(1*t);
+    float y = 150 + 10 * sin(1*t);
+    float tilt = map(t, 0.0, rotations*2*M_PI, 90, 30);
+    move_to(x, y, 90, tilt);
+//    delay(15);
+  }
+}
+
 void loop() {
 //  CoroutineScheduler::loop();
 //  for (float tilt = 45; tilt <= 90; tilt += 0.01) {
@@ -437,21 +443,23 @@ void loop() {
 //    move_to(0, 332.1, tilt, 90);
 //  }
 
-  #if DEBUG
-    for (float pan = 0; pan <= 90; pan += 1.0) {
-      move_to(0, 135, 90, pan);
-      delay(5);
-    }
-    for (float pan = 90; pan >= 0; pan -= 1.0) {
-      move_to(0, 135, 90, pan);
-      delay(5);
-    }
-  #else
-    for (float pan = 0; pan <= 90; pan += 0.1) {
-      move_to(0, 135, 90, pan);
-    }
-    for (float pan = 90; pan >= 0; pan -= 0.1) {
-      move_to(0, 135, 90, pan);
-    }
-  #endif
+//  #if DEBUG
+//    for (float pan = 0; pan <= 90; pan += 1.0) {
+//      move_to(0, 135, 90, pan);
+//      delay(5);
+//    }
+//    for (float pan = 90; pan >= 0; pan -= 1.0) {
+//      move_to(0, 135, 90, pan);
+//      delay(5);
+//    }
+//  #else
+//    for (float pan = 0; pan <= 90; pan += 0.1) {
+//      move_to(0, 135, 90, pan);
+//    }
+//    for (float pan = 90; pan >= 0; pan -= 0.1) {
+//      move_to(0, 135, 90, pan);
+//    }
+//  #endif
+
+  heart();
 }
