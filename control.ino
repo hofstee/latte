@@ -289,6 +289,102 @@ void pos1() {
   servos[3].writeMicroseconds(1472);
 }
 
+float lerp(float t, float x0, float x1) {
+  return x0 + t * (x1 - x0);
+}
+
+void heart() {
+  // Use about 4oz of liquid
+  
+  // About 7 rotations over 5 seconds
+  const unsigned long NUM_ROTATIONS = 7;
+  const unsigned long FILL_DUR = 5000;
+  const unsigned long FILL_STOP_TILT = 35;
+  // About 5 seconds for the heart
+  const unsigned long HEART_DUR = 5000;
+  // About 1 second for the pull through
+  const unsigned long PULL_DUR = 1000;
+
+  unsigned long start_ms, cur_ms;
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 1000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 1000, 90, 40);
+    float y = 140 + map(cur_ms, start_ms, start_ms + 1000, 0, 20);
+    move_to(0, y, 90, tilt);
+  }
+  
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + FILL_DUR) {
+//    float t = map(cur_ms, start_ms, start_ms + 5000, 0.0, NUM_ROTATIONS*2*M_PI);
+//    float x = 15 * cos(t);
+//    float y = 150 + 10 * sin(t);
+
+    int rot_ms = (cur_ms - start_ms) % (FILL_DUR/NUM_ROTATIONS);
+    int quadrant = 4 * rot_ms / (FILL_DUR / NUM_ROTATIONS);
+    float t = ((float)((4 * rot_ms) % (FILL_DUR / NUM_ROTATIONS))) / (FILL_DUR/NUM_ROTATIONS);
+    float x, y;
+    switch (quadrant) {
+      case 0:
+        x = lerp(t, 15, 0);
+//        y = 150 + lerp(t, 0, 10);
+        y = 150;
+        break;
+      case 1:
+        x = lerp(t, 0, -15);
+//        y = 150 + lerp(t, 10, 0);
+        y = 150;
+        break;
+      case 2:
+        x = lerp(t, -15, 0);
+//        y = 150 + lerp(t, 0, -10);
+        y = 150;
+        break;
+      case 3:
+        x = lerp(t, 0, 15);
+//        y = 150 + lerp(t, -10, 0);
+        y = 150;
+        break;
+    }
+    
+    float tilt = map(cur_ms, start_ms, start_ms + 5000, 40, FILL_STOP_TILT);
+    move_to(x, y, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 500) {
+    float tilt = map(cur_ms, start_ms, start_ms + 500, FILL_STOP_TILT, 45);
+    move_to(0, 140, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + HEART_DUR) {
+    float tilt = map(cur_ms, start_ms , start_ms + HEART_DUR, FILL_STOP_TILT, 10);
+    move_to(0, 140, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + PULL_DUR) {
+    float y = 140 + map(cur_ms, start_ms, start_ms + PULL_DUR, 0, 40);
+    float tilt = map(cur_ms, start_ms , start_ms + PULL_DUR, 10, 0);
+    move_to(0, y, 90, tilt);
+  }
+  
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 1000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 1000, 0, 20);
+    move_to(0, 180, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 2000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 2000, 20, 90);
+    float y = 140 + map(cur_ms, start_ms, start_ms + 2000, 40, 0);
+    move_to(0, y, 90, tilt);
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -423,52 +519,6 @@ COROUTINE(stationary) {
       move_to(0, 332.1, tilt, 90);
       COROUTINE_DELAY(1);
     }
-  }
-}
-
-void heart() {
-  // About 7 rotations over 5 seconds
-  const unsigned long NUM_ROTATIONS = 7;
-  const unsigned long FILL_DUR = 5000;
-  // About 5 seconds for the heart
-  const unsigned long HEART_DUR = 5000;
-  // About 1 second for the pull through
-  const unsigned long PULL_DUR = 1000;
-
-  unsigned long start_ms, cur_ms;
-  
-  start_ms = millis();
-  while ((cur_ms = millis()) < start_ms + FILL_DUR) {
-    float t = map(cur_ms, start_ms, start_ms + 5000, 0.0, NUM_ROTATIONS*2*M_PI);
-    float x = 15 * cos(t);
-    float y = 150 + 10 * sin(t);
-    float tilt = map(cur_ms, start_ms, start_ms + 5000, 90, 30);
-    move_to(x, y, 90, tilt);
-  }
-
-  start_ms = millis();
-  while ((cur_ms = millis()) < start_ms + 500) {
-    float tilt = map(cur_ms, start_ms, start_ms + 500, 30, 45);
-    move_to(0, 130, 90, tilt);
-  }
-
-  start_ms = millis();
-  while ((cur_ms = millis()) < start_ms + HEART_DUR) {
-    float tilt = map(cur_ms, start_ms , start_ms + HEART_DUR, 30, 10);
-    move_to(0, 130, 90, tilt);
-  }
-
-  start_ms = millis();
-  while ((cur_ms = millis()) < start_ms + PULL_DUR) {
-    float y = 130 + map(cur_ms, start_ms, start_ms + PULL_DUR, 0, 40);
-    float tilt = map(cur_ms, start_ms , start_ms + PULL_DUR, 10, 0);
-    move_to(0, y, 90, tilt);
-  }
-
-  start_ms = millis();
-  while ((cur_ms = millis()) < start_ms + 2000) {
-    float tilt = map(cur_ms, start_ms, start_ms + 2000, 0, 90);
-    move_to(0, 130, 90, tilt);
   }
 }
 
