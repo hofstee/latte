@@ -10,7 +10,7 @@ Servo rot2;
 
 Servo servos[4];
 
-#define DEBUG true
+#define DEBUG false
 #define CURRENT false
 
 //const int MIN_PWM = 553;
@@ -31,10 +31,18 @@ float target[4];
 float error[4];
 float prev_error[4];
 
+// Config 2
+//const float LEN_0 = 128.98; // pivot 0 to pivot 1
+//const float LEN_1 = 83.83; // pivot 1 to pivot 2
+//const float LEN_2 = 69.97; // pivot 2 to middle of l-bracket (43.22 + 26.75)
+//const float LEN_3 = 100.0;
+
+// Config 3
 const float LEN_0 = 128.98; // pivot 0 to pivot 1
 const float LEN_1 = 83.83; // pivot 1 to pivot 2
-const float LEN_2 = 69.97; // pivot 2 to middle of l-bracket (43.22 + 26.75)
-const float LEN_3 = 140.0;
+const float LEN_2 = 101.97; // pivot 2 to middle of 3-bracket
+const float LEN_3 = 45.0;
+const float LEN_4 = 15.0; // z-offset from pivot to pitcher tip
 
 const float L00 = LEN_0 * LEN_0;
 const float L11 = LEN_1 * LEN_1;
@@ -140,10 +148,12 @@ void move_to(float x, float y, float pan, float tilt) {
   float pan_rad = deg2rad(pan);
   float s_pan = sin(pan_rad);
   float c_pan = cos(pan_rad);
-  float s_tilt = sin(deg2rad(tilt));
+  float tilt_rad = deg2rad(tilt);
+  float s_tilt = sin(tilt_rad);
+  float c_tilt = cos(tilt_rad);
   
-  float offset_x = -LEN_2 * s_pan + LEN_3 * c_pan * s_tilt; // x-offset due to pitcher
-  float offset_y = LEN_2 * c_pan + LEN_3 * s_pan * s_tilt; // y-offset due to pitcher
+  float offset_x = -LEN_2 * s_pan + LEN_3 * c_pan * s_tilt + LEN_4 * c_pan * c_tilt; // x-offset due to pitcher
+  float offset_y = LEN_2 * c_pan + LEN_3 * s_pan * s_tilt + LEN_4 * s_pan * c_tilt; // y-offset due to pitcher
 
   float target_x = x - offset_x;
   float target_y = y - offset_y;
@@ -325,8 +335,10 @@ void setup() {
 //  move_to(59.01, 223.83, 90, 90); // 0, 90, 90, 90
 //  move_to(0, 332.1, 80, 90);
 
-//  move_to(0, 250, 90, 90); // y-min 90 tilt
-  move_to(0, 190, 90, 0); // y-max 0 tilt
+//  move_to(0, 206.7, 90, 90); // y-min 90 tilt for config 2
+  move_to(0, 125, 90, 90); // y-min 90 tilt for config 3
+//  move_to(0, 125, 90, 0);
+//  move_to(0, 190, 90, 0); // y-max 0 tilt
 
   CoroutineScheduler::setup();
 }
@@ -425,12 +437,21 @@ void loop() {
 //    move_to(0, 332.1, tilt, 90);
 //  }
 
-//  for (float pan = 0; pan <= 90; pan += 1.0) {
-//    move_to(0, 270, 90, pan);
-//    delay(15);
-//  }
-//  for (float pan = 90; pan >= 0; pan -= 1.0) {
-//    move_to(0, 270, 90, pan);
-//    delay(15);
-//  }
+  #if DEBUG
+    for (float pan = 0; pan <= 90; pan += 1.0) {
+      move_to(0, 135, 90, pan);
+      delay(5);
+    }
+    for (float pan = 90; pan >= 0; pan -= 1.0) {
+      move_to(0, 135, 90, pan);
+      delay(5);
+    }
+  #else
+    for (float pan = 0; pan <= 90; pan += 0.1) {
+      move_to(0, 135, 90, pan);
+    }
+    for (float pan = 90; pan >= 0; pan -= 0.1) {
+      move_to(0, 135, 90, pan);
+    }
+  #endif
 }
