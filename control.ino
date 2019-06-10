@@ -1,6 +1,7 @@
 #include <Math.h>
 #include <Servo.h>
 #include <AceRoutine.h>
+
 using namespace ace_routine;
 
 Servo tilt;
@@ -10,7 +11,7 @@ Servo rot2;
 
 Servo servos[4];
 
-#define DEBUG true
+#define DEBUG false
 #define CURRENT false
 
 //const int MIN_PWM = 553;
@@ -33,8 +34,9 @@ float prev_error[4];
 
 const float LEN_0 = 128.98; // pivot 0 to pivot 1
 const float LEN_1 = 83.83; // pivot 1 to pivot 2
-const float LEN_2 = 69.97; // pivot 2 to middle of l-bracket (43.22 + 26.75)
-const float LEN_3 = 140.0;
+const float LEN_2 = 101.97; // pivot 2 to middle of 3-bracket
+const float LEN_3 = 45.0;
+const float LEN_4 = 15.0; // z-offset from pivot to pitcher tip
 
 const float L00 = LEN_0 * LEN_0;
 const float L11 = LEN_1 * LEN_1;
@@ -140,10 +142,12 @@ void move_to(float x, float y, float pan, float tilt) {
   float pan_rad = deg2rad(pan);
   float s_pan = sin(pan_rad);
   float c_pan = cos(pan_rad);
-  float s_tilt = sin(deg2rad(tilt));
+  float tilt_rad = deg2rad(tilt);
+  float s_tilt = sin(tilt_rad);
+  float c_tilt = cos(tilt_rad);
   
-  float offset_x = -LEN_2 * s_pan + LEN_3 * c_pan * s_tilt; // x-offset due to pitcher
-  float offset_y = LEN_2 * c_pan + LEN_3 * s_pan * s_tilt; // y-offset due to pitcher
+  float offset_x = -LEN_2 * s_pan + LEN_3 * c_pan * s_tilt + LEN_4 * c_pan * c_tilt; // x-offset due to pitcher
+  float offset_y = LEN_2 * c_pan + LEN_3 * s_pan * s_tilt + LEN_4 * s_pan * c_tilt; // y-offset due to pitcher
 
   float target_x = x - offset_x;
   float target_y = y - offset_y;
@@ -229,6 +233,8 @@ void move_to(float x, float y, float pan, float tilt) {
       Serial.print(", ");
       Serial.print(tilt);
       Serial.print(")\n");
+    #else
+      Serial.println("Can't move!");
     #endif
   }
 }
@@ -283,6 +289,102 @@ void pos1() {
   servos[3].writeMicroseconds(1472);
 }
 
+float lerp(float t, float x0, float x1) {
+  return x0 + t * (x1 - x0);
+}
+
+void heart() {
+  // Use about 4oz of liquid
+  
+  // About 7 rotations over 5 seconds
+  const unsigned long NUM_ROTATIONS = 7;
+  const unsigned long FILL_DUR = 5000;
+  const unsigned long FILL_STOP_TILT = 35;
+  // About 5 seconds for the heart
+  const unsigned long HEART_DUR = 5000;
+  // About 1 second for the pull through
+  const unsigned long PULL_DUR = 1000;
+
+  unsigned long start_ms, cur_ms;
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 1000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 1000, 90, 40);
+    float y = 140 + map(cur_ms, start_ms, start_ms + 1000, 0, 20);
+    move_to(0, y, 90, tilt);
+  }
+  
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + FILL_DUR) {
+//    float t = map(cur_ms, start_ms, start_ms + 5000, 0.0, NUM_ROTATIONS*2*M_PI);
+//    float x = 15 * cos(t);
+//    float y = 150 + 10 * sin(t);
+
+    int rot_ms = (cur_ms - start_ms) % (FILL_DUR/NUM_ROTATIONS);
+    int quadrant = 4 * rot_ms / (FILL_DUR / NUM_ROTATIONS);
+    float t = ((float)((4 * rot_ms) % (FILL_DUR / NUM_ROTATIONS))) / (FILL_DUR/NUM_ROTATIONS);
+    float x, y;
+    switch (quadrant) {
+      case 0:
+        x = lerp(t, 15, 0);
+//        y = 150 + lerp(t, 0, 10);
+        y = 150;
+        break;
+      case 1:
+        x = lerp(t, 0, -15);
+//        y = 150 + lerp(t, 10, 0);
+        y = 150;
+        break;
+      case 2:
+        x = lerp(t, -15, 0);
+//        y = 150 + lerp(t, 0, -10);
+        y = 150;
+        break;
+      case 3:
+        x = lerp(t, 0, 15);
+//        y = 150 + lerp(t, -10, 0);
+        y = 150;
+        break;
+    }
+    
+    float tilt = map(cur_ms, start_ms, start_ms + 5000, 40, FILL_STOP_TILT);
+    move_to(x, y, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 500) {
+    float tilt = map(cur_ms, start_ms, start_ms + 500, FILL_STOP_TILT, 45);
+    move_to(0, 140, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + HEART_DUR) {
+    float tilt = map(cur_ms, start_ms , start_ms + HEART_DUR, FILL_STOP_TILT, 10);
+    move_to(0, 140, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + PULL_DUR) {
+    float y = 140 + map(cur_ms, start_ms, start_ms + PULL_DUR, 0, 40);
+    float tilt = map(cur_ms, start_ms , start_ms + PULL_DUR, 10, 0);
+    move_to(0, y, 90, tilt);
+  }
+  
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 1000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 1000, 0, 20);
+    move_to(0, 180, 90, tilt);
+  }
+
+  start_ms = millis();
+  while ((cur_ms = millis()) < start_ms + 2000) {
+    float tilt = map(cur_ms, start_ms, start_ms + 2000, 20, 90);
+    float y = 140 + map(cur_ms, start_ms, start_ms + 2000, 40, 0);
+    move_to(0, y, 90, tilt);
+  }
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -325,10 +427,14 @@ void setup() {
 //  move_to(59.01, 223.83, 90, 90); // 0, 90, 90, 90
 //  move_to(0, 332.1, 80, 90);
 
-//  move_to(0, 250, 90, 90); // y-min 90 tilt
-  move_to(0, 190, 90, 0); // y-max 0 tilt
+//  move_to(0, 206.7, 90, 90); // y-min 90 tilt for config 2
+//  move_to(0, 125, 90, 90); // y-min 90 tilt for config 3
+//  move_to(0, 125, 90, 0);
+//  move_to(0, 190, 90, 0); // y-max 0 tilt
 
   CoroutineScheduler::setup();
+
+  heart();
 }
 
 COROUTINE(measure_current) {
@@ -425,12 +531,23 @@ void loop() {
 //    move_to(0, 332.1, tilt, 90);
 //  }
 
-//  for (float pan = 0; pan <= 90; pan += 1.0) {
-//    move_to(0, 270, 90, pan);
-//    delay(15);
-//  }
-//  for (float pan = 90; pan >= 0; pan -= 1.0) {
-//    move_to(0, 270, 90, pan);
-//    delay(15);
-//  }
+//  #if DEBUG
+//    for (float pan = 0; pan <= 90; pan += 1.0) {
+//      move_to(0, 135, 90, pan);
+//      delay(5);
+//    }
+//    for (float pan = 90; pan >= 0; pan -= 1.0) {
+//      move_to(0, 135, 90, pan);
+//      delay(5);
+//    }
+//  #else
+//    for (float pan = 0; pan <= 90; pan += 0.1) {
+//      move_to(0, 135, 90, pan);
+//    }
+//    for (float pan = 90; pan >= 0; pan -= 0.1) {
+//      move_to(0, 135, 90, pan);
+//    }
+//  #endif
+
+//  heart();
 }
