@@ -10,6 +10,9 @@ Servo rot2;
 
 Servo servos[4];
 
+#define DEBUG true
+#define CURRENT false
+
 //const int MIN_PWM = 553;
 //const int MAX_PWM = 2425;
 //const int MIN_PWM = 600;
@@ -17,7 +20,7 @@ Servo servos[4];
 
 int sensors[] = { A0, A1, A2, A3 };
 unsigned int sensor_vals[4];
-float current[4][10];
+float current[4];
 const int num_samples = 20;
 const float V_ref = 2500;
 const float sensitivity = 1000.0 / 400.0; // 1A per 400mV
@@ -31,6 +34,15 @@ float prev_error[4];
 const float LEN_0 = 128.98; // pivot 0 to pivot 1
 const float LEN_1 = 83.83; // pivot 1 to pivot 2
 const float LEN_2 = 69.97; // pivot 2 to middle of l-bracket (43.22 + 26.75)
+const float LEN_3 = 140.0;
+
+const float L00 = LEN_0 * LEN_0;
+const float L11 = LEN_1 * LEN_1;
+const float L01 = LEN_0 * LEN_1;
+
+float wrap_range(float x, float min, float max) {
+  return min + fmod(max - min + fmod(x - min, max - min), max - min);
+}
 
 int iters = 0;
 
@@ -50,60 +62,175 @@ float deg2rad(float deg) {
 void print_currents() {
   float total_current = 0.0;
   for (int k = 0; k < 4; k++) {
-    total_current += current[k][0];
-    Serial.print(current[k][0]);
+    total_current += current[k];
+    Serial.print(current[k]);
     Serial.print(",");
   }
   Serial.print(total_current);
   Serial.print("\n");
 }
 
+const float D0_MIN = 0.00;
+const float D0_MAX = 140.00;
 void move_servo0(float deg) {
+  // deg in [0.00, 140.00]
   // 40 tooth driving a 48 tooth gear -> 1.2 gear ratio
   // Servo characteristics: (in theory 0.102 deg/us, but not in practice)
   //  0.00 deg ->  652 us
   // 90.00 deg -> 1740 us
+  #if DEBUG
+    Serial.print("Moving servo 0 to ");
+    Serial.println(deg);
+  #endif
   servos[0].writeMicroseconds(round(652 + (deg * 1.2)/0.0992647));
 }
 
+const float D1_MIN = 60.00;
+const float D1_MAX = 200.00;
 void move_servo1(float deg) {
+  // deg in [60.00, 200.00]
   // 40 tooth driving a 48 tooth gear -> 1.2 gear ratio
   // Servo characteristics: (in theory 0.102 deg/us, but not in practice)
   //  90.00 deg -> 1000 us
   // 180.00 deg -> 2114 us
+  #if DEBUG
+    Serial.print("Moving servo 1 to ");
+    Serial.println(deg);
+  #endif
   servos[1].writeMicroseconds(round(-114 + (deg * 1.2)/0.0969469));
 }
 
+const float D2_MIN = 0.00;
+const float D2_MAX = 180.00;
 void move_servo2(float deg) {
+  // deg in [0.00, 180.00]
   // Direct connection
   // Servo characteristics: (in theory 0.102 deg/us, but not in practice)
+  //   0.00 deg -> 2390 us
   //  90.00 deg -> 1460 us
-  servos[2].writeMicroseconds(round(578 + (180.0-deg) / 0.102));
+  #if DEBUG
+    Serial.print("Moving servo 2 to ");
+    Serial.println(deg);
+  #endif
+  servos[2].writeMicroseconds(round(530 + (180.0-deg)/0.09677419));
+}
+
+void move_servo3(float deg) {
+  // Direct connection
+  // Servo characteristics: (in theory 0.102 deg/us, but not in practice)
+//  servos[3].writeMicroseconds(1472); // roughly 90 deg
+  servos[3].writeMicroseconds(round(590 + deg/0.102));
+}
+
+bool viable_pos(float d0, float d1, float d2) {
+  #if DEBUG
+    Serial.println(d0);
+    Serial.println(d1);
+    Serial.println(d2);
+  #endif
+  return D0_MIN <= d0 && d0 <= D0_MAX &&
+         D1_MIN <= d1 && d1 <= D1_MAX &&
+         D2_MIN <= d2 && d2 <= D2_MAX;
 }
 
 // TODO: easing and make servos move to target position over time
-void move_to(float x, float y, float tx, float ty, float tilt) {
+void move_to(float x, float y, float pan, float tilt) {
   // x-extent:
   // y-extent: 100mm - 192mm
-  float offset_x = LEN_2; // x-offset due to pitcher
-  float offset_y = 0.0;
+  float pan_rad = deg2rad(pan);
+  float s_pan = sin(pan_rad);
+  float c_pan = cos(pan_rad);
+  float s_tilt = sin(deg2rad(tilt));
+  
+  float offset_x = -LEN_2 * s_pan + LEN_3 * c_pan * s_tilt; // x-offset due to pitcher
+  float offset_y = LEN_2 * c_pan + LEN_3 * s_pan * s_tilt; // y-offset due to pitcher
 
-  float target_x = x + offset_x;
-  float target_y = y + offset_y;
+  float target_x = x - offset_x;
+  float target_y = y - offset_y;
+
+  #if DEBUG
+    Serial.println(target_x);
+    Serial.println(target_y);
+  #endif
+
+  bool lhs = true;
 
   float dist2 = target_x*target_x + target_y*target_y;
+  float R = sqrt(dist2);
   float gamma = atan2(target_y, target_x);
-  float beta = acos((dist2 - LEN_0*LEN_0 - LEN_1*LEN_1)/(-2*LEN_0*LEN_1));
+  float beta = acos(wrap_range((dist2 - L00 - L11)/(-2*L01), -1.0, 1.0));
   float psi = M_PI - beta;
-  float alpha = asin((LEN_1 * sin(psi)) / sqrt(dist2));
+  float alpha = asin((LEN_1 * sin(psi)) / R);
 
-  float deg0 = rad2deg(gamma - alpha);
-  float deg1 = 90.0 + rad2deg(psi);
+  #if DEBUG
+    Serial.print("R: ");
+    Serial.println(R);
+    Serial.print("gamma: ");
+    Serial.println(gamma);
+    Serial.print("stuff: ");
+    Serial.println((dist2 - L00 - L11)/(-2*L01));
+    Serial.print("beta: ");
+    Serial.println(beta);
+    Serial.print("psi: ");
+    Serial.println(psi);
+    Serial.print("alpha: ");
+    Serial.println(alpha);
+  #endif
+
+  float lhs_deg0 = wrap_range(rad2deg(gamma + alpha), 0.0, 360.0);
+  float lhs_deg1 = wrap_range(90.0 + rad2deg(-psi), 0.0, 360.0);
+  float lhs_deg2 = wrap_range(270.0 - (lhs_deg0 + lhs_deg1) + pan, 0.0, 360.0);
+  bool lhs_viable = viable_pos(lhs_deg0, lhs_deg1, lhs_deg2);
   
-  move_servo0(deg0);
-  move_servo1(deg1);
-  move_servo2(360.0 - (deg0 + deg1));
-  servos[3].writeMicroseconds(1472);
+  float rhs_deg0 = wrap_range(rad2deg(gamma - alpha), 0.0, 360.0);
+  float rhs_deg1 = wrap_range(90.0 + rad2deg(psi), 0.0, 360.0);
+  float rhs_deg2 = wrap_range(270.0 - (rhs_deg0 + rhs_deg1) + pan, 0.0, 360.0);
+  bool rhs_viable = viable_pos(rhs_deg0, rhs_deg1, rhs_deg2);
+
+//  Serial.println(lhs_deg0);
+//  Serial.println(lhs_deg1);
+//  Serial.println(lhs_deg2);
+//  Serial.println("===");
+//  Serial.println(rhs_deg0);
+//  Serial.println(rhs_deg1);
+//  Serial.println(rhs_deg2);
+
+  if (lhs_viable && rhs_viable) {
+    // Pick the one where deg2 is closer to 90 degrees to give max clearance to pitcher
+    if (abs(90.0 - rhs_deg2) <= abs(90.0 - lhs_deg2)) {
+      move_servo0(rhs_deg0);
+      move_servo1(rhs_deg1);
+      move_servo2(rhs_deg2);      
+    } else {
+      move_servo0(lhs_deg0);
+      move_servo1(lhs_deg1);
+      move_servo2(lhs_deg2);      
+    }
+    move_servo3(tilt);
+  } else if (rhs_viable) {
+    move_servo0(rhs_deg0);
+    move_servo1(rhs_deg1);
+    move_servo2(rhs_deg2);
+    move_servo3(tilt);
+  } else if (lhs_viable) {
+    move_servo0(lhs_deg0);
+    move_servo1(lhs_deg1);
+    move_servo2(lhs_deg2);
+    move_servo3(tilt);
+  } else {
+    // Don't move.
+    #if DEBUG
+      Serial.print("Can't move to requested position: (");
+      Serial.print(x);
+      Serial.print(", ");
+      Serial.print(y);
+      Serial.print(", ");
+      Serial.print(pan);
+      Serial.print(", ");
+      Serial.print(tilt);
+      Serial.print(")\n");
+    #endif
+  }
 }
 
 // debug position
@@ -168,8 +295,39 @@ void setup() {
 //  servos[2].attach(6, MIN_PWM, MAX_PWM); // pan
 //  servos[3].attach(9, MIN_PWM, MAX_PWM); // tilt
 
-  move_to(0, 100, 0, 1, 90);
-  
+//  move_servo1(100);
+//  move_servo2(180);
+
+//  move_to(0, 100 + LEN_3, 0, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 15, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 30, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 45, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 60, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 75, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 90, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 105, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 120, 90);
+//  delay(500);
+//  move_to(0, 100 + LEN_3, 135, 90);
+//  delay(500);
+
+//  move_to(0, 332.1, 90, 90);
+//  move_to(0, 186.08, 0, 90);
+//  move_to(-153.8, 268.98, 90, 90); // 90, 180, 90, 90
+//  move_to(59.01, 223.83, 90, 90); // 0, 90, 90, 90
+//  move_to(0, 332.1, 80, 90);
+
+//  move_to(0, 250, 90, 90); // y-min 90 tilt
+  move_to(0, 190, 90, 0); // y-max 0 tilt
+
   CoroutineScheduler::setup();
 }
 
@@ -183,44 +341,22 @@ COROUTINE(measure_current) {
       }
       COROUTINE_DELAY(2);
     }
-  
-    // Shift over current readings
-    for (int i = 1; i < 10; i++) {
-      for (int k = 0; k < 4; k++) {
-        current[k][i] = current[k][i - 1];
-      }
-    }
-  
-    // Compute new current and target
+    
+    // Compute currents
     for (int k = 0; k < 4; k++) {
-      current[k][0] = compute_current(sensor_vals[k] / num_samples);
-      //    for (int i = 0; i < 10; i++) {
-      //      target[k] += current[k][i];
-      //    }
-      //    target[k] /= 10.0;
-      target[k] = 200.0;
-    }
-  
-    // Move the servos for compliance
-    for (int k = 0; k < 4; k++) {
-      error[k] = target[k] - current[k][0];
-      float react = P * error[k] + D * (error[k] - prev_error[k]);
-  
-      //    if (react > 0) {
-      //      servos[k].write(servos[k].read() + 5);
-      //    }
+      current[k] = compute_current(sensor_vals[k] / num_samples);
     }
   
     // Print out current samples
-    print_currents();
+    #if CURRENT
+      print_currents();
+    #endif
   
     // Reset sensor measurements
     for (int k = 0; k < 4; k++) {
       sensor_vals[k] = 0;
       prev_error[k] = error[k];
     }
-
-    sample = 0;
   }
 }
 
@@ -257,46 +393,44 @@ static float servo3_deg;
 //  }
 //}
 
-COROUTINE(straightline) {
-  static float deg = 0.0;
-  static bool increasing = true;
+//COROUTINE(straightline) {
+//  COROUTINE_LOOP() {
+//    move_to(0, 100, 90, 90);
+//    COROUTINE_DELAY(5000);
+//    move_to(0, 192, 90, 90);
+//    COROUTINE_DELAY(5000);
+//  }
+//}
+
+COROUTINE(stationary) {
   COROUTINE_LOOP() {
-    move_to(0, 100, 0, 1, 90);
-    COROUTINE_DELAY(5000);
-    move_to(0, 192, 0, 1, 90);
-    COROUTINE_DELAY(5000);
-//    if (increasing) {
-//      for (deg = 16.00; deg <= 57.15; deg += 0.15) {
-//        float deg2 = -deg + 90 + rad2deg(acos((LEN_2 - LEN_0 * cos(deg2rad(deg)))/LEN_1));
-//        move_servo0(deg);
-////        servo0_deg = deg;
-//        move_servo1(deg2);
-////        servo1_deg = deg2;
-//        move_servo2(360.0 - (deg + deg2));
-////        servo2_deg = 360.0 - (deg + deg2);
-//        if (deg + 0.15 > 57.15) {
-//          increasing = false;
-//        }
-//        COROUTINE_DELAY(15);
-//      }
-//    } else {
-//      for (deg = 57.15; deg >= 16.00; deg -= 0.15) {
-//        float deg2 = -deg + 90 + rad2deg(acos((LEN_2 - LEN_0 * cos(deg2rad(deg)))/LEN_1));
-//        move_servo0(deg);
-////        servo0_deg = deg;
-//        move_servo1(deg2);
-////        servo1_deg = deg2;
-//        move_servo2(360.0 - (deg + deg2));
-////        servo2_deg = 360.0 - (deg + deg2);
-//        if (deg - 0.15 < 16.00) {
-//          increasing = true;
-//        }
-//        COROUTINE_DELAY(15);  
-//      }
-//    }
+    static float tilt = 45;
+    for (float tilt = 45; tilt <= 90; tilt += 0.01) {
+      move_to(0, 332.1, tilt, 90);
+      COROUTINE_DELAY(1);
+    }
+    for (float tilt = 90; tilt >= 45; tilt -= 0.01) {
+      move_to(0, 332.1, tilt, 90);
+      COROUTINE_DELAY(1);
+    }
   }
 }
 
 void loop() {
-  CoroutineScheduler::loop();
+//  CoroutineScheduler::loop();
+//  for (float tilt = 45; tilt <= 90; tilt += 0.01) {
+//    move_to(0, 332.1, tilt, 90);
+//  }
+//  for (float tilt = 90; tilt >= 45; tilt -= 0.01) {
+//    move_to(0, 332.1, tilt, 90);
+//  }
+
+//  for (float pan = 0; pan <= 90; pan += 1.0) {
+//    move_to(0, 270, 90, pan);
+//    delay(15);
+//  }
+//  for (float pan = 90; pan >= 0; pan -= 1.0) {
+//    move_to(0, 270, 90, pan);
+//    delay(15);
+//  }
 }
